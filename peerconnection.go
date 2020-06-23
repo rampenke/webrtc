@@ -1767,7 +1767,7 @@ func (pc *PeerConnection) generateUnmatchedSDP(useIdentity bool) (*sdp.SessionDe
 		mediaSections = append(mediaSections, mediaSection{id: strconv.Itoa(len(mediaSections)), data: true})
 	}
 
-	return populateSDP(d, isPlanB, pc.api.settingEngine.candidates.ICELite, pc.api.mediaEngine, connectionRoleFromDtlsRole(defaultDtlsRoleOffer), candidates, iceParams, mediaSections, pc.ICEGatheringState())
+	return populateSDP(d, isPlanB, pc.api.settingEngine.candidates.ICELite, pc.api.mediaEngine, connectionRoleFromDtlsRole(defaultDtlsRoleOffer), candidates, iceParams, mediaSections, pc.ICEGatheringState(), pc.api.settingEngine.getSDPExtensions())
 }
 
 // generateMatchedSDP generates a SDP and takes the remote state into account
@@ -1867,7 +1867,12 @@ func (pc *PeerConnection) generateMatchedSDP(useIdentity bool, includeUnmatched 
 		pc.log.Info("Plan-B Offer detected; responding with Plan-B Answer")
 	}
 
-	return populateSDP(d, detectedPlanB, pc.api.settingEngine.candidates.ICELite, pc.api.mediaEngine, connectionRole, candidates, iceParams, mediaSections, pc.ICEGatheringState())
+	matchedSDPMap, err := matchedAnswerExt(pc.RemoteDescription().parsed.MediaDescriptions, pc.api.settingEngine.getSDPExtensions())
+	if err != nil {
+		return nil, err
+	}
+
+	return populateSDP(d, detectedPlanB, pc.api.settingEngine.candidates.ICELite, pc.api.mediaEngine, connectionRole, candidates, iceParams, mediaSections, pc.ICEGatheringState(), matchedSDPMap)
 }
 
 func (pc *PeerConnection) setGatherCompleteHdlr(hdlr func()) {
