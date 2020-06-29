@@ -145,7 +145,7 @@ func addCandidatesToMediaDescriptions(candidates []ICECandidate, m *sdp.MediaDes
 	m.WithPropertyAttribute("end-of-candidates")
 }
 
-func addDataMediaSection(d *sdp.SessionDescription, midValue string, iceParams ICEParameters, candidates []ICECandidate, dtlsRole sdp.ConnectionRole, iceGatheringState ICEGatheringState) {
+func addDataMediaSection(d *sdp.SessionDescription, fingerprintCert *Certificate, midValue string, iceParams ICEParameters, candidates []ICECandidate, dtlsRole sdp.ConnectionRole, iceGatheringState ICEGatheringState) {
 	media := (&sdp.MediaDescription{
 		MediaName: sdp.MediaName{
 			Media:   mediaSectionApplication,
@@ -167,11 +167,20 @@ func addDataMediaSection(d *sdp.SessionDescription, midValue string, iceParams I
 		WithPropertyAttribute("sctpmap:5000 webrtc-datachannel 1024").
 		WithICECredentials(iceParams.UsernameFragment, iceParams.Password)
 
+	if fingerprintCert != nil {
+		fingerprints, err := fingerprintCert.GetFingerprints()
+		if err == nil {
+			for _, fingerprint := range fingerprints {
+				media = media.WithFingerprint(fingerprint.Algorithm, strings.ToUpper(fingerprint.Value))
+			}
+		}
+	}
+
 	addCandidatesToMediaDescriptions(candidates, media, iceGatheringState)
 	d.WithMedia(media)
 }
 
-func addFingerprints(d *sdp.SessionDescription, c Certificate) error {
+func addSessionFingerprints(d *sdp.SessionDescription, c Certificate) error {
 	fingerprints, err := c.GetFingerprints()
 	if err != nil {
 		return err
@@ -207,7 +216,7 @@ func populateLocalCandidates(sessionDescription *SessionDescription, i *ICEGathe
 	}
 }
 
-func addTransceiverSDP(d *sdp.SessionDescription, isPlanB bool, mediaEngine *MediaEngine, midValue string, iceParams ICEParameters, candidates []ICECandidate, dtlsRole sdp.ConnectionRole, iceGatheringState ICEGatheringState, transceivers ...*RTPTransceiver) (bool, error) {
+func addTransceiverSDP(d *sdp.SessionDescription, isPlanB bool, fingerprintCert *Certificate, mediaEngine *MediaEngine, midValue string, iceParams ICEParameters, candidates []ICECandidate, dtlsRole sdp.ConnectionRole, iceGatheringState ICEGatheringState, transceivers ...*RTPTransceiver) (bool, error) {
 	if len(transceivers) < 1 {
 		return false, fmt.Errorf("addTransceiverSDP() called with 0 transceivers")
 	}
@@ -231,6 +240,7 @@ func addTransceiverSDP(d *sdp.SessionDescription, isPlanB bool, mediaEngine *Med
 			}
 		}
 	}
+
 	if len(codecs) == 0 {
 		// Explicitly reject track if we don't have the codec
 		d.WithMedia(&sdp.MediaDescription{
@@ -257,6 +267,15 @@ func addTransceiverSDP(d *sdp.SessionDescription, isPlanB bool, mediaEngine *Med
 
 	media = media.WithPropertyAttribute(t.Direction().String())
 
+	if fingerprintCert != nil {
+		fingerprints, err := fingerprintCert.GetFingerprints()
+		if err == nil {
+			for _, fingerprint := range fingerprints {
+				media = media.WithFingerprint(fingerprint.Algorithm, strings.ToUpper(fingerprint.Value))
+			}
+		}
+	}
+
 	addCandidatesToMediaDescriptions(candidates, media, iceGatheringState)
 	d.WithMedia(media)
 
@@ -270,7 +289,7 @@ type mediaSection struct {
 }
 
 // populateSDP serializes a PeerConnections state into an SDP
-func populateSDP(d *sdp.SessionDescription, isPlanB bool, isICELite bool, mediaEngine *MediaEngine, connectionRole sdp.ConnectionRole, candidates []ICECandidate, iceParams ICEParameters, mediaSections []mediaSection, iceGatheringState ICEGatheringState) (*sdp.SessionDescription, error) {
+func populateSDP(d *sdp.SessionDescription, isPlanB bool, mediaFingerprintCert *Certificate, isICELite bool, mediaEngine *MediaEngine, connectionRole sdp.ConnectionRole, candidates []ICECandidate, iceParams ICEParameters, mediaSections []mediaSection, iceGatheringState ICEGatheringState) (*sdp.SessionDescription, error) {
 	var err error
 
 	bundleValue := "BUNDLE"
@@ -289,8 +308,8 @@ func populateSDP(d *sdp.SessionDescription, isPlanB bool, isICELite bool, mediaE
 
 		shouldAddID := true
 		if m.data {
-			addDataMediaSection(d, m.id, iceParams, candidates, connectionRole, iceGatheringState)
-		} else if shouldAddID, err = addTransceiverSDP(d, isPlanB, mediaEngine, m.id, iceParams, candidates, connectionRole, iceGatheringState, m.transceivers...); err != nil {
+			addDataMediaSection(d, mediaFingerprintCert, m.id, iceParams, candidates, connectionRole, iceGatheringState)
+		} else if shouldAddID, err = addTransceiverSDP(d, isPlanB, mediaFingerprintCert, mediaEngine, m.id, iceParams, candidates, connectionRole, iceGatheringState, m.transceivers...); err != nil {
 			return nil, err
 		}
 
