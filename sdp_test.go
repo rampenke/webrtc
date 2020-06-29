@@ -387,7 +387,7 @@ func TestMatchedAnswerExt(t *testing.T) {
 	se := SettingEngine{}
 	se.AddSDPExtensions("video", exts)
 
-	ansMaps, err := matchedAnswerExt(s.MediaDescriptions, se.getSDPExtensions())
+	ansMaps, err := matchedAnswerExt(s, se.getSDPExtensions())
 	if err != nil {
 		t.Fatalf("Ext parse error %v", err)
 	}

@@ -1867,7 +1867,7 @@ func (pc *PeerConnection) generateMatchedSDP(useIdentity bool, includeUnmatched 
 		pc.log.Info("Plan-B Offer detected; responding with Plan-B Answer")
 	}
 
-	matchedSDPMap, err := matchedAnswerExt(pc.RemoteDescription().parsed.MediaDescriptions, pc.api.settingEngine.getSDPExtensions())
+	matchedSDPMap, err := matchedAnswerExt(pc.RemoteDescription().parsed, pc.api.settingEngine.getSDPExtensions())
 	if err != nil {
 		return nil, err
 	}

@@ -451,7 +451,7 @@ func haveApplicationMediaSection(desc *sdp.SessionDescription) bool {
 	return false
 }
 
-func matchedAnswerExt(descriptions []*sdp.MediaDescription, localMaps map[string][]sdp.ExtMap) (map[string][]sdp.ExtMap, error) {
+func matchedAnswerExt(descriptions *sdp.SessionDescription, localMaps map[string][]sdp.ExtMap) (map[string][]sdp.ExtMap, error) {
 	remoteExtMaps, err := remoteExts(descriptions)
 	if err != nil {
 		return nil, err
@@ -477,31 +477,46 @@ func answerExtMaps(remoteExtMaps map[string]map[int]sdp.ExtMap, localMaps map[st
 	return ret
 }
 
-func remoteExts(descriptions []*sdp.MediaDescription) (map[string]map[int]sdp.ExtMap, error) {
+func remoteExts(session *sdp.SessionDescription) (map[string]map[int]sdp.ExtMap, error) {
 	remoteExtMaps := map[string]map[int]sdp.ExtMap{}
 
+	maybeAddExt := func(attr sdp.Attribute, mediaType string) error {
+		if attr.Key != "extmap" {
+			return nil
+		}
+		em := &sdp.ExtMap{}
+		if err := em.Unmarshal("extmap:" + attr.Value); err != nil {
+			return fmt.Errorf("failed to parse ExtMap: %v", err)
+		}
+		if remoteExtMap, ok := remoteExtMaps[mediaType][em.Value]; ok {
+			if remoteExtMap.Value != em.Value {
+				return fmt.Errorf("RemoteDescription changed some extmaps values")
+			}
+		} else {
+			remoteExtMaps[mediaType][em.Value] = *em
+		}
+		return nil
+	}
+
 	// populate the extmaps from the current remote description
-	for _, media := range descriptions {
+	for _, media := range session.MediaDescriptions {
 		mediaType := media.MediaName.Media
 		// populate known remote extmap and handle conflicts.
 		if _, ok := remoteExtMaps[mediaType]; !ok {
 			remoteExtMaps[mediaType] = map[int]sdp.ExtMap{}
 		}
 		for _, attr := range media.Attributes {
-			if attr.Key != "extmap" {
-				continue
+			if err := maybeAddExt(attr, mediaType); err != nil {
+				return nil, err
 			}
-			em := &sdp.ExtMap{}
-			if err := em.Unmarshal("extmap:" + attr.Value); err != nil {
-				return nil, fmt.Errorf("failed to parse ExtMap: %v", err)
-			}
-			if remoteExtMap, ok := remoteExtMaps[mediaType][em.Value]; ok {
-				if remoteExtMap.Value != em.Value {
-					return nil, fmt.Errorf("RemoteDescription changed some extmaps values")
-				}
-			} else {
-				remoteExtMaps[mediaType][em.Value] = *em
-			}
+		}
+	}
+
+	// Add global exts
+	mediaType := "global"
+	for _, attr := range session.Attributes {
+		if err := maybeAddExt(attr, mediaType); err != nil {
+			return nil, err
 		}
 	}
 	return remoteExtMaps, nil
