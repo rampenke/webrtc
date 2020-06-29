@@ -297,7 +297,6 @@ func TestHaveApplicationMediaSection(t *testing.T) {
 }
 
 func TestMediaDescriptionFingerprints(t *testing.T) {
-
 	engine := &MediaEngine{}
 	engine.RegisterCodec(NewRTPH264Codec(DefaultPayloadTypeH264, 90000))
 	engine.RegisterCodec(NewRTPOpusCodec(DefaultPayloadTypeOpus, 48000))
@@ -318,7 +317,8 @@ func TestMediaDescriptionFingerprints(t *testing.T) {
 
 	priv.Precompute()
 
-	testsdp := "v=0\r\no= 0 0   \r\ns=\r\na=group:BUNDLE video audio\r\nm=video 9 UDP/TLS/RTP/SAVPF 102\r\nc=IN IP4 0.0.0.0\r\na=setup:active\r\na=mid:video\r\na=ice-ufrag\r\na=ice-pwd\r\na=rtcp-mux\r\na=rtcp-rsize\r\na=rtpmap:102 H264/90000\r\na=fmtp:102 level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42001f\r\na=sendonly\r\na=fingerprint:sha-256 34:1F:E5:AD:AC:79:55:8E:80:38:A5:57:EF:75:34:EA:F5:22:A4:DB:E2:5D:82:67:C5:15:A3:FA:B5:E9:B8:0B\r\nm=audio 9 UDP/TLS/RTP/SAVPF 111\r\nc=IN IP4 0.0.0.0\r\na=setup:active\r\na=mid:audio\r\na=ice-ufrag\r\na=ice-pwd\r\na=rtcp-mux\r\na=rtcp-rsize\r\na=rtpmap:111 opus/48000/2\r\na=fmtp:111 minptime=10;useinbandfec=1\r\na=sendonly\r\na=fingerprint:sha-256 34:1F:E5:AD:AC:79:55:8E:80:38:A5:57:EF:75:34:EA:F5:22:A4:DB:E2:5D:82:67:C5:15:A3:FA:B5:E9:B8:0B\r\n"
+	testsdp := []string{"v=0\r\no= 0 0   \r\ns=\r\na=group:BUNDLE video audio\r\nm=video 9 UDP/TLS/RTP/SAVPF 102\r\nc=IN IP4 0.0.0.0\r\na=setup:active\r\na=mid:video\r\na=ice-ufrag\r\na=ice-pwd\r\na=rtcp-mux\r\na=rtcp-rsize\r\na=rtpmap:102 H264/90000\r\na=fmtp:102 level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42001f\r\na=sendonly\r\na=fingerprint:sha-256 34:1F:E5:AD:AC:79:55:8E:80:38:A5:57:EF:75:34:EA:F5:22:A4:DB:E2:5D:82:67:C5:15:A3:FA:B5:E9:B8:0B\r\nm=audio 9 UDP/TLS/RTP/SAVPF 111\r\nc=IN IP4 0.0.0.0\r\na=setup:active\r\na=mid:audio\r\na=ice-ufrag\r\na=ice-pwd\r\na=rtcp-mux\r\na=rtcp-rsize\r\na=rtpmap:111 opus/48000/2\r\na=fmtp:111 minptime=10;useinbandfec=1\r\na=sendonly\r\na=fingerprint:sha-256 34:1F:E5:AD:AC:79:55:8E:80:38:A5:57:EF:75:34:EA:F5:22:A4:DB:E2:5D:82:67:C5:15:A3:FA:B5:E9:B8:0B\r\n",
+		"v=0\r\no= 0 0   \r\ns=\r\na=fingerprint:sha-256 34:1F:E5:AD:AC:79:55:8E:80:38:A5:57:EF:75:34:EA:F5:22:A4:DB:E2:5D:82:67:C5:15:A3:FA:B5:E9:B8:0B\r\na=group:BUNDLE video audio\r\nm=video 9 UDP/TLS/RTP/SAVPF 102\r\nc=IN IP4 0.0.0.0\r\na=setup:active\r\na=mid:video\r\na=ice-ufrag\r\na=ice-pwd\r\na=rtcp-mux\r\na=rtcp-rsize\r\na=rtpmap:102 H264/90000\r\na=fmtp:102 level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42001f\r\na=sendonly\r\nm=audio 9 UDP/TLS/RTP/SAVPF 111\r\nc=IN IP4 0.0.0.0\r\na=setup:active\r\na=mid:audio\r\na=ice-ufrag\r\na=ice-pwd\r\na=rtcp-mux\r\na=rtcp-rsize\r\na=rtpmap:111 opus/48000/2\r\na=fmtp:111 minptime=10;useinbandfec=1\r\na=sendonly\r\n"}
 
 	template := &x509.Certificate{
 		SerialNumber: big.NewInt(2020),
@@ -332,7 +332,6 @@ func TestMediaDescriptionFingerprints(t *testing.T) {
 
 	assert.Equal(t, nil, err)
 
-	s := &sdp.SessionDescription{}
 	media := []mediaSection{
 		{
 			id: "video",
@@ -355,18 +354,27 @@ func TestMediaDescriptionFingerprints(t *testing.T) {
 		media[i].transceivers[0].setDirection(RTPTransceiverDirectionSendonly)
 	}
 
-	s, err = populateSDP(s, false,
-		&Certificate{
-			privateKey: priv,
-			x509Cert:   cert,
-		},
-		false, engine, sdp.ConnectionRoleActive, []ICECandidate{}, ICEParameters{}, media, ICEGatheringStateNew)
+	fingerprintTest := func(SDPMediaDescriptionFingerprints bool, expected int) func(t *testing.T) {
+		return func(t *testing.T) {
+			s := &sdp.SessionDescription{}
 
-	assert.Equal(t, nil, err)
+			s, err = populateSDP(s, false,
+				&Certificate{
+					privateKey: priv,
+					x509Cert:   cert,
+				},
+				SDPMediaDescriptionFingerprints,
+				false, engine, sdp.ConnectionRoleActive, []ICECandidate{}, ICEParameters{}, media, ICEGatheringStateNew)
 
-	sdparray, err := s.Marshal()
+			assert.Equal(t, nil, err)
 
-	assert.Equal(t, nil, err)
+			sdparray, err := s.Marshal()
 
-	assert.Equal(t, testsdp, string(sdparray))
+			assert.Equal(t, nil, err)
+			assert.Equal(t, testsdp[expected], string(sdparray))
+		}
+	}
+
+	t.Run("Per-Media Description Fingerprints", fingerprintTest(true, 0))
+	t.Run("Per-Session Description Fingerprints", fingerprintTest(false, 1))
 }

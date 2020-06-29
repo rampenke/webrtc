@@ -170,6 +170,9 @@ func addDataMediaSection(d *sdp.SessionDescription, fingerprintCert *Certificate
 	if fingerprintCert != nil {
 		fingerprints, err := fingerprintCert.GetFingerprints()
 		if err == nil {
+			if err != nil {
+				return
+			}
 			for _, fingerprint := range fingerprints {
 				media = media.WithFingerprint(fingerprint.Algorithm, strings.ToUpper(fingerprint.Value))
 			}
@@ -178,17 +181,6 @@ func addDataMediaSection(d *sdp.SessionDescription, fingerprintCert *Certificate
 
 	addCandidatesToMediaDescriptions(candidates, media, iceGatheringState)
 	d.WithMedia(media)
-}
-
-func addSessionFingerprints(d *sdp.SessionDescription, c Certificate) error {
-	fingerprints, err := c.GetFingerprints()
-	if err != nil {
-		return err
-	}
-	for _, fingerprint := range fingerprints {
-		d.WithFingerprint(fingerprint.Algorithm, strings.ToUpper(fingerprint.Value))
-	}
-	return nil
 }
 
 func populateLocalCandidates(sessionDescription *SessionDescription, i *ICEGatherer, iceGatheringState ICEGatheringState) *SessionDescription {
@@ -289,8 +281,13 @@ type mediaSection struct {
 }
 
 // populateSDP serializes a PeerConnections state into an SDP
-func populateSDP(d *sdp.SessionDescription, isPlanB bool, mediaFingerprintCert *Certificate, isICELite bool, mediaEngine *MediaEngine, connectionRole sdp.ConnectionRole, candidates []ICECandidate, iceParams ICEParameters, mediaSections []mediaSection, iceGatheringState ICEGatheringState) (*sdp.SessionDescription, error) {
+func populateSDP(d *sdp.SessionDescription, isPlanB bool, fingerprintCert *Certificate, mediaDescriptionFingerprint bool, isICELite bool, mediaEngine *MediaEngine, connectionRole sdp.ConnectionRole, candidates []ICECandidate, iceParams ICEParameters, mediaSections []mediaSection, iceGatheringState ICEGatheringState) (*sdp.SessionDescription, error) {
 	var err error
+	var mediaFingerprintCert *Certificate
+
+	if mediaDescriptionFingerprint {
+		mediaFingerprintCert = fingerprintCert
+	}
 
 	bundleValue := "BUNDLE"
 	bundleCount := 0
@@ -309,12 +306,25 @@ func populateSDP(d *sdp.SessionDescription, isPlanB bool, mediaFingerprintCert *
 		shouldAddID := true
 		if m.data {
 			addDataMediaSection(d, mediaFingerprintCert, m.id, iceParams, candidates, connectionRole, iceGatheringState)
-		} else if shouldAddID, err = addTransceiverSDP(d, isPlanB, mediaFingerprintCert, mediaEngine, m.id, iceParams, candidates, connectionRole, iceGatheringState, m.transceivers...); err != nil {
-			return nil, err
+		} else {
+			shouldAddID, err = addTransceiverSDP(d, isPlanB, mediaFingerprintCert, mediaEngine, m.id, iceParams, candidates, connectionRole, iceGatheringState, m.transceivers...)
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		if shouldAddID {
 			appendBundle(m.id)
+		}
+	}
+
+	if !mediaDescriptionFingerprint {
+		fingerprints, err := fingerprintCert.GetFingerprints()
+		if err != nil {
+			return nil, err
+		}
+		for _, fingerprint := range fingerprints {
+			d.WithFingerprint(fingerprint.Algorithm, strings.ToUpper(fingerprint.Value))
 		}
 	}
 

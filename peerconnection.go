@@ -1720,15 +1720,6 @@ func (pc *PeerConnection) GetRegisteredRTPCodecs(kind RTPCodecType) []*RTPCodec 
 func (pc *PeerConnection) generateUnmatchedSDP(useIdentity bool) (*sdp.SessionDescription, error) {
 	d := sdp.NewJSEPSessionDescription(useIdentity)
 
-	if !pc.configuration.SDPMediaLevelFingerprints {
-		pc.log.Debugf("SessionLevelFingerprints")
-		if err := addSessionFingerprints(d, pc.configuration.Certificates[0]); err != nil {
-			return nil, err
-		}
-	} else {
-		pc.log.Debugf("MediaLevelFingerprints")
-	}
-
 	iceParams, err := pc.iceGatherer.GetLocalParameters()
 	if err != nil {
 		return nil, err
@@ -1775,22 +1766,13 @@ func (pc *PeerConnection) generateUnmatchedSDP(useIdentity bool) (*sdp.SessionDe
 		mediaSections = append(mediaSections, mediaSection{id: strconv.Itoa(len(mediaSections)), data: true})
 	}
 
-	var mediaCert *Certificate
-
-	if pc.configuration.SDPMediaLevelFingerprints {
-		mediaCert = &pc.configuration.Certificates[0]
-	}
-
-	return populateSDP(d, isPlanB, mediaCert, pc.api.settingEngine.candidates.ICELite, pc.api.mediaEngine, connectionRoleFromDtlsRole(defaultDtlsRoleOffer), candidates, iceParams, mediaSections, pc.ICEGatheringState())
+	return populateSDP(d, isPlanB, &pc.configuration.Certificates[0], pc.configuration.SDPMediaLevelFingerprints, pc.api.settingEngine.candidates.ICELite, pc.api.mediaEngine, connectionRoleFromDtlsRole(defaultDtlsRoleOffer), candidates, iceParams, mediaSections, pc.ICEGatheringState())
 }
 
 // generateMatchedSDP generates a SDP and takes the remote state into account
 // this is used everytime we have a RemoteDescription
 func (pc *PeerConnection) generateMatchedSDP(useIdentity bool, includeUnmatched bool, connectionRole sdp.ConnectionRole) (*sdp.SessionDescription, error) {
 	d := sdp.NewJSEPSessionDescription(useIdentity)
-	if err := addSessionFingerprints(d, pc.configuration.Certificates[0]); err != nil {
-		return nil, err
-	}
 
 	iceParams, err := pc.iceGatherer.GetLocalParameters()
 	if err != nil {
@@ -1881,13 +1863,7 @@ func (pc *PeerConnection) generateMatchedSDP(useIdentity bool, includeUnmatched 
 		pc.log.Info("Plan-B Offer detected; responding with Plan-B Answer")
 	}
 
-	var mediaCert *Certificate
-
-	if pc.configuration.SDPMediaLevelFingerprints {
-		mediaCert = &pc.configuration.Certificates[0]
-	}
-
-	return populateSDP(d, detectedPlanB, mediaCert, pc.api.settingEngine.candidates.ICELite, pc.api.mediaEngine, connectionRole, candidates, iceParams, mediaSections, pc.ICEGatheringState())
+	return populateSDP(d, detectedPlanB, &pc.configuration.Certificates[0], pc.configuration.SDPMediaLevelFingerprints, pc.api.settingEngine.candidates.ICELite, pc.api.mediaEngine, connectionRole, candidates, iceParams, mediaSections, pc.ICEGatheringState())
 }
 
 func (pc *PeerConnection) setGatherCompleteHdlr(hdlr func()) {
