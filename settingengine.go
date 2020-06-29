@@ -49,7 +49,7 @@ type SettingEngine struct {
 		SRTP  *uint
 		SRTCP *uint
 	}
-	sdpExtensions                             map[string][]sdp.ExtMap
+	sdpExtensions                             map[SDPSectionType][]sdp.ExtMap
 	answeringDTLSRole                         DTLSRole
 	disableCertificateFingerprintVerification bool
 	disableSRTPReplayProtection               bool
@@ -243,9 +243,9 @@ func (e *SettingEngine) DisableSRTCPReplayProtection(isDisabled bool) {
 //
 // Ext IDs are optional and generated if you do not provide them
 // SDP answers will only include extensions supported by both sides
-func (e *SettingEngine) AddSDPExtensions(mediaType string, exts []sdp.ExtMap) {
+func (e *SettingEngine) AddSDPExtensions(mediaType SDPSectionType, exts []sdp.ExtMap) {
 	if e.sdpExtensions == nil {
-		e.sdpExtensions = make(map[string][]sdp.ExtMap)
+		e.sdpExtensions = make(map[SDPSectionType][]sdp.ExtMap)
 	}
 	if _, ok := e.sdpExtensions[mediaType]; !ok {
 		e.sdpExtensions[mediaType] = []sdp.ExtMap{}
@@ -253,7 +253,7 @@ func (e *SettingEngine) AddSDPExtensions(mediaType string, exts []sdp.ExtMap) {
 	e.sdpExtensions[mediaType] = append(e.sdpExtensions[mediaType], exts...)
 }
 
-func (e *SettingEngine) getSDPExtensions() map[string][]sdp.ExtMap {
+func (e *SettingEngine) getSDPExtensions() map[SDPSectionType][]sdp.ExtMap {
 	var lastID int
 	idMap := map[string]int{}
 

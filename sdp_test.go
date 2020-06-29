@@ -313,8 +313,8 @@ func TestPopulateSDP(t *testing.T) {
 		mediaSections := []mediaSection{{id: "video", transceivers: []*RTPTransceiver{tr}}}
 
 		se := SettingEngine{}
-		se.AddSDPExtensions("global", globalExts)
-		se.AddSDPExtensions("video", videoExts)
+		se.AddSDPExtensions(SDPSectionGlobal, globalExts)
+		se.AddSDPExtensions(SDPSectionVideo, videoExts)
 
 		m := MediaEngine{}
 		m.RegisterDefaultCodecs()
@@ -385,14 +385,14 @@ func TestMatchedAnswerExt(t *testing.T) {
 	}
 
 	se := SettingEngine{}
-	se.AddSDPExtensions("video", exts)
+	se.AddSDPExtensions(SDPSectionVideo, exts)
 
 	ansMaps, err := matchedAnswerExt(s, se.getSDPExtensions())
 	if err != nil {
 		t.Fatalf("Ext parse error %v", err)
 	}
 
-	if maps := ansMaps["video"]; maps != nil {
+	if maps := ansMaps[SDPSectionVideo]; maps != nil {
 		// Check answer contains intersect of remote and local
 		// Abs send time should be only extenstion
 		assert.Equal(t, 1, len(maps), "Only one extension should be active")
